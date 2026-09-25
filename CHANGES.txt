@@ -1,5 +1,30 @@
 Changes:
 
+0.3.0
+#######################################
+- ported to GIMP 3; GIMP 2.x is no longer supported, use 0.2.4 for it
+- images of any precision, RGB and grayscale, with and without alpha,
+  are corrected in linear light as float
+- Exif data comes from the metadata of the image instead of the file,
+  through GExiv2, so it also works for unsaved images, and Exiv2 is no
+  longer needed; the standard lens model tag is used for all makers
+- all camera makers of the database instead of a fixed list
+- camera and lens names match any of their names in the database
+- preview of the whole corrected layer in the dialog
+- corrections, focal length, aperture, distance, target geometry and
+  interpolation are arguments of the procedure; Exif data fills in
+  what is not given
+- target geometry can be chosen, e.g. fisheye to rectilinear
+- fixed: vignetting was corrected row by row while other threads read
+  neighbouring rows for the distortion correction
+- fixed: with a selection only the selection was taken as the photo,
+  which moved the optical center
+- fixed: Lanczos interpolation left a dark border of two pixels
+- the database of the plug-in or the user's newer updates by
+  lensfun-update-data are used
+- build system is meson; lensfun 0.3.4 is built in if the system has no
+  lensfun 0.3, e.g. for the Flatpak version of GIMP
+
 0.2.4
 #######################################
 - basic support for non interactive mode

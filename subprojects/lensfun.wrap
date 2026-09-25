@@ -1,0 +1,4 @@
+[wrap-git]
+url = https://github.com/lensfun/lensfun.git
+revision = v0.3.4
+depth = 1

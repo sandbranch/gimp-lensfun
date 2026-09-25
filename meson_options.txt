@@ -1,0 +1,9 @@
+option('plugindir', type: 'string', value: '',
+  description: 'Folder of GIMP plug-ins, default: the system folder of GIMP. '
+    + 'For a user installation use e.g. ~/.config/GIMP/3.2/plug-ins')
+option('bundled_lensfun', type: 'feature', value: 'auto',
+  description: 'Build lensfun 0.3 from source and link it in: auto uses the '
+    + 'system library if there is one')
+option('lensfun_db', type: 'string', value: '',
+  description: 'Folder with a lensfun database (version 1) to install with '
+    + 'the plug-in, e.g. from https://lensfun.github.io/db/version_1.tar.bz2')
