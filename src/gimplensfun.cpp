@@ -27,6 +27,7 @@
 
 #include "correct.h"
 #include "lensdb.h"
+#include "lensdb-exif.h"
 
 #define PLUG_IN_PROC    "plug-in-lensfun"
 #define PLUG_IN_BINARY  "gimp-lensfun"
@@ -182,6 +183,13 @@ gimp_lensfun_create_procedure (GimpPlugIn *plug_in, const gchar *name)
                                          "Correct the vignetting (darker "
                                          "corners)",
                                          FALSE, G_PARAM_READWRITE);
+    gimp_procedure_add_boolean_argument (procedure, "as-filter",
+                                         "_Keep as an editable filter",
+                                         "Add the correction as a filter "
+                                         "(lensfun:correct) that stays "
+                                         "editable on the layer, instead of "
+                                         "changing its pixels",
+                                         FALSE, G_PARAM_READWRITE);
     gimp_procedure_add_boolean_argument (procedure, "scale-to-fit",
                                          "_Scale to fit",
                                          "Scale the result so that it has no "
@@ -283,18 +291,13 @@ linear_format (GimpDrawable *drawable)
     return babl_format_with_space (name, space);
 }
 
+/* Whether the camera and lens are in the database, with a focal length. */
 static gboolean
-correct_drawable (GimpDrawable *drawable, const lfDatabase *db,
-                  const LensSettings &settings,
-                  const CorrectionOptions &options, GError **error)
+check_settings (const lfDatabase *db, const LensSettings &settings,
+                GError **error)
 {
     const lfCamera *camera = lensdb_find_camera (db, settings);
     const lfLens *lens = lensdb_find_lens (db, settings);
-    const Babl *format = linear_format (drawable);
-    FloatImage src;
-    GeglBuffer *buffer;
-    gsize size;
-    float *dest;
 
     if (settings.maker.empty () && settings.camera.empty ())
     {
@@ -328,6 +331,66 @@ correct_drawable (GimpDrawable *drawable, const lfDatabase *db,
                      "correction.");
         return FALSE;
     }
+    return TRUE;
+}
+
+/* Adds lensfun:correct to the drawable as a filter with these settings,
+   which stays editable. */
+static gboolean
+add_filter (GimpDrawable *drawable, const LensSettings &settings,
+            const CorrectionOptions &options, GError **error)
+{
+    static const gchar *interpolations[] = { "nearest", "linear", "lanczos" };
+    GimpDrawableFilter *filter;
+    const gchar *geometry = "rectilinear";
+
+    if (!gegl_has_operation ("lensfun:correct") ||
+        !(filter = gimp_drawable_filter_new (drawable, "lensfun:correct",
+                                             "Lens Correction (Lensfun)")))
+    {
+        g_set_error (error, GIMP_PLUG_IN_ERROR, 0,
+                     "The lensfun:correct filter is not installed.");
+        return FALSE;
+    }
+
+    for (guint i = 0; i < G_N_ELEMENTS (geometries); i++)
+        if (geometries[i].type == options.target)
+            geometry = geometries[i].nick;
+
+    g_object_set (gimp_drawable_filter_get_config (filter),
+                  "camera-maker", settings.maker.c_str (),
+                  "camera-model", settings.camera.c_str (),
+                  "lens-model", settings.lens.c_str (),
+                  "focal-length", settings.focal,
+                  "aperture", settings.aperture,
+                  "distance", options.distance,
+                  "correct-distortion", (gboolean) options.distortion,
+                  "correct-tca", (gboolean) options.tca,
+                  "correct-vignetting", (gboolean) options.vignetting,
+                  "scale-to-fit", (gboolean) options.scale_to_fit,
+                  "target-geometry", geometry,
+                  "interpolation", interpolations[options.interpolation],
+                  NULL);
+    gimp_drawable_filter_update (filter);
+    gimp_drawable_append_filter (drawable, filter);
+    return TRUE;
+}
+
+static gboolean
+correct_drawable (GimpDrawable *drawable, const lfDatabase *db,
+                  const LensSettings &settings,
+                  const CorrectionOptions &options, GError **error)
+{
+    const lfCamera *camera = lensdb_find_camera (db, settings);
+    const lfLens *lens = lensdb_find_lens (db, settings);
+    const Babl *format = linear_format (drawable);
+    FloatImage src;
+    GeglBuffer *buffer;
+    gsize size;
+    float *dest;
+
+    if (!check_settings (db, settings, error))
+        return FALSE;
 
     /* the whole layer is the photo, its center the optical center; the
        selection only limits where the result is applied */
@@ -638,7 +701,10 @@ lensfun_dialog (GimpProcedure *procedure, GimpProcedureConfig *config,
     gimp_procedure_dialog_fill_box (dialog, "correct-box", "correct-distortion",
                                     "correct-tca", "correct-vignetting",
                                     "scale-to-fit", "target-geometry",
-                                    "interpolation", NULL);
+                                    "interpolation", "as-filter", NULL);
+    gimp_procedure_dialog_set_sensitive (dialog, "as-filter",
+                                         gegl_has_operation ("lensfun:correct"),
+                                         NULL, NULL, FALSE);
     gimp_procedure_dialog_get_label (dialog, "correct-title", "Correction",
                                      FALSE, FALSE);
     gimp_procedure_dialog_fill_frame (dialog, "correct-frame", "correct-title",
@@ -733,7 +799,13 @@ gimp_lensfun_run (GimpProcedure *procedure, GimpRunMode run_mode,
         if (settings.aperture <= 0)
             settings.aperture = exif.aperture;
 
-        if (!correct_drawable (drawable, db, settings, options, &error))
+        gboolean as_filter;
+
+        g_object_get (config, "as-filter", &as_filter, NULL);
+        if (as_filter
+            ? !(check_settings (db, settings, &error) &&
+                add_filter (drawable, settings, options, &error))
+            : !correct_drawable (drawable, db, settings, options, &error))
             status = GIMP_PDB_EXECUTION_ERROR;
         else if (run_mode != GIMP_RUN_NONINTERACTIVE)
             gimp_displays_flush ();

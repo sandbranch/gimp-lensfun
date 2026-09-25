@@ -25,10 +25,21 @@ middle; a selection only limits where the result is applied.
 Images of any precision (8 and 16 bit, floating point), RGB and grayscale,
 with or without alpha, are corrected in linear light at full precision.
 
+### As an editable filter
+
+The correction also exists as a GEGL operation, `lensfun:correct`, which
+GIMP keeps on the layer as a non-destructive filter: its settings can be
+changed later, with live preview. The easiest way to add it is "Keep as an
+editable filter" in the plug-in's dialog: the plug-in fills in the camera
+and lens from the Exif data and adds the filter instead of changing the
+pixels. The filter can also be added directly, from Filters > Enhance >
+Lens Correction (Lensfun Filter)..., with the camera maker, camera and lens
+typed as they are in the database (it cannot read Exif data itself).
+
 From scripts, the procedure `plug-in-lensfun` takes the camera maker,
 camera model, lens model, focal length and aperture (empty or 0 to use the
 Exif data), the subject distance, which corrections to apply, the target
-geometry and the interpolation.
+geometry and the interpolation, and `as-filter` to add the filter.
 
 ## The lens database
 
@@ -46,8 +57,14 @@ https://lensfun.github.io/db/versions.json.
 Needs meson, ninja, a C++ compiler, the GIMP 3 development files, and either
 lensfun 0.3 or, to build lensfun from source, CMake and git.
 
-    meson setup build -Dplugindir=$HOME/.config/GIMP/3.2/plug-ins
+    meson setup build -Dplugindir=$HOME/.config/GIMP/3.2/plug-ins \
+      -Dmoduledir=$HOME/.local/share/gegl-0.4/plug-ins
     ninja -C build install
+
+`-Dmoduledir` is where GEGL loads operations from (for the Flatpak version
+of GIMP, `~/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins`); the filter's
+copy of the database goes into `lensfun-db` next to that folder.
+`-Dgegl_op=disabled` builds only the plug-in.
 
 Lensfun 0.3.4 is built from source and linked in when the system has no
 lensfun 0.3 (`-Dbundled_lensfun=enabled` forces it). Its database is then
@@ -62,8 +79,17 @@ Flatpak, with the GNOME SDK that GIMP was built with (see
     flatpak install --user flathub org.gnome.Sdk//50
     flatpak run --devel --filesystem=$PWD --filesystem=~/.config/GIMP \
       --env=PKG_CONFIG_PATH=/app/lib/pkgconfig --command=sh org.gimp.GIMP -c \
-      'meson setup build -Dplugindir=$HOME/.config/GIMP/3.2/plug-ins &&
+      'meson setup build -Dplugindir=$HOME/.config/GIMP/3.2/plug-ins \
+         -Dmoduledir=$XDG_DATA_HOME/gegl-0.4/plug-ins &&
        ninja -C build install'
+
+or with [gimp-plugin-devtools](https://github.com/sandbranch/gimp-plugin-devtools):
+
+    gimp-build.sh . meson setup build -Dplugindir=\$GIMP_PLUGINDIR -Dmoduledir=\$GEGL_OPDIR
+    gimp-build.sh . ninja -C build install
+
+`tests/compare.sh` corrects a grid with the installed plug-in and filter
+and checks that they agree.
 
 Restart GIMP after installing.
 

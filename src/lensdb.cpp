@@ -23,8 +23,6 @@
 #include <cstring>
 #include <set>
 
-#include <gexiv2/gexiv2.h>
-
 #include "lensdb.h"
 
 /* The version of the database format that Lensfun 0.3 reads. */
@@ -74,8 +72,8 @@ lensdb_load (const gchar *db_dir)
     return db;
 }
 
-static std::string
-mlstr (const lfMLstr s)
+std::string
+lensdb_mlstr (const lfMLstr s)
 {
     const char *str = lf_mlstr_get (s);
     return str ? str : "";
@@ -109,7 +107,7 @@ lensdb_makers (const lfDatabase *db)
     const lfCamera *const *cameras = db->GetCameras ();
 
     for (int i = 0; cameras && cameras[i]; i++)
-        makers.insert (mlstr (cameras[i]->Maker));
+        makers.insert (lensdb_mlstr (cameras[i]->Maker));
     return std::vector<std::string> (makers.begin (), makers.end ());
 }
 
@@ -121,7 +119,7 @@ lensdb_cameras (const lfDatabase *db, const std::string &maker)
 
     for (int i = 0; cameras && cameras[i]; i++)
         if (mlstr_matches (cameras[i]->Maker, maker))
-            names.insert (mlstr (cameras[i]->Model));
+            names.insert (lensdb_mlstr (cameras[i]->Model));
     return std::vector<std::string> (names.begin (), names.end ());
 }
 
@@ -142,7 +140,7 @@ lensdb_lenses (const lfDatabase *db, const std::string &maker,
 
     lenses = db->FindLenses (cam, NULL, NULL);
     for (int i = 0; lenses && lenses[i]; i++)
-        names.insert (mlstr (lenses[i]->Model));
+        names.insert (lensdb_mlstr (lenses[i]->Model));
     lf_free (lenses);
     return std::vector<std::string> (names.begin (), names.end ());
 }
@@ -181,120 +179,4 @@ lensdb_find_lens (const lfDatabase *db, const LensSettings &settings)
         }
     lf_free (lenses);
     return found;
-}
-
-/* The value of an Exif tag as Exiv2 prints it, which for maker notes is
-   the lens name decoded from the lens ID; empty if missing. */
-static std::string
-exif_string (GExiv2Metadata *metadata, const gchar *tag, bool interpreted)
-{
-    gchar *value;
-    std::string result;
-
-    if (!gexiv2_metadata_try_has_tag (metadata, tag, NULL))
-        return "";
-
-    value = interpreted
-        ? gexiv2_metadata_try_get_tag_interpreted_string (metadata, tag, NULL)
-        : gexiv2_metadata_try_get_tag_string (metadata, tag, NULL);
-    if (value)
-        result = g_strstrip (value);
-    g_free (value);
-    return result;
-}
-
-static void
-replace_all (std::string &str, const std::string &old, const std::string &by)
-{
-    for (size_t pos = str.find (old); pos != std::string::npos;
-         pos = str.find (old, pos + by.size ()))
-        str.replace (pos, old.size (), by);
-}
-
-gboolean
-lensdb_settings_from_metadata (const lfDatabase *db, GimpImage *image,
-                               LensSettings &settings)
-{
-    GimpMetadata *gimp_metadata = gimp_image_get_metadata (image);
-    GExiv2Metadata *metadata;
-    std::string make, model, maker_lc, lens_name;
-    std::vector<const gchar *> lens_tags;
-    const lfCamera **cameras;
-    const lfCamera *camera = NULL;
-
-    if (!gimp_metadata)
-        return FALSE;
-    metadata = GEXIV2_METADATA (gimp_metadata);
-
-    make = exif_string (metadata, "Exif.Image.Make", false);
-    model = exif_string (metadata, "Exif.Image.Model", false);
-    if (make.empty ())
-        return FALSE;
-
-    /* the camera, as the database names it */
-    settings = LensSettings ();
-    cameras = db->FindCameras (make.c_str (), model.c_str ());
-    if (cameras)
-    {
-        camera = cameras[0];
-        settings.maker = mlstr (camera->Maker);
-        settings.camera = mlstr (camera->Model);
-    }
-    else
-        settings.maker = make;
-    lf_free (cameras);
-
-    /* the lens: maker notes tell more than the standard tag for older
-       cameras of these makers, the standard tag is used for the rest */
-    maker_lc = make;
-    std::transform (maker_lc.begin (), maker_lc.end (), maker_lc.begin (),
-                    ::tolower);
-    if (maker_lc.find ("pentax") != std::string::npos)
-        lens_tags.push_back ("Exif.Pentax.LensType");
-    else if (maker_lc.find ("canon") != std::string::npos)
-        lens_tags.push_back ("Exif.CanonCs.LensType");
-    else if (maker_lc.find ("minolta") != std::string::npos)
-        lens_tags.push_back ("Exif.Minolta.LensID");
-    else if (maker_lc.find ("nikon") != std::string::npos)
-    {
-        lens_tags.push_back ("Exif.NikonLd3.LensIDNumber");
-        lens_tags.push_back ("Exif.NikonLd2.LensIDNumber");
-        lens_tags.push_back ("Exif.NikonLd1.LensIDNumber");
-    }
-    else if (maker_lc.find ("olympus") != std::string::npos)
-        lens_tags.push_back ("Exif.OlympusEq.LensType");
-    lens_tags.push_back ("Exif.Photo.LensModel");
-
-    for (const gchar *tag : lens_tags)
-    {
-        lens_name = exif_string (metadata, tag, true);
-        if (!lens_name.empty ())
-            break;
-    }
-    if (maker_lc.find ("nikon") != std::string::npos)
-    {
-        /* modify some lens names for better searching in the database */
-        replace_all (lens_name, "Nikon", "");
-        replace_all (lens_name, "Zoom-Nikkor", "");
-    }
-
-    if (camera)
-    {
-        /* only take lens names of significant length */
-        const lfLens **lenses =
-            db->FindLenses (camera, NULL,
-                            lens_name.size () > 8 ? lens_name.c_str () : NULL);
-        if (lenses)
-            settings.lens = mlstr (lenses[0]->Model);
-        lf_free (lenses);
-    }
-
-    settings.focal = gexiv2_metadata_try_get_focal_length (metadata, NULL);
-    settings.aperture = gexiv2_metadata_try_get_fnumber (metadata, NULL);
-    if (settings.focal < 0)
-        settings.focal = 0;
-    if (settings.aperture < 0)
-        settings.aperture = 0;
-
-    return TRUE;
 }

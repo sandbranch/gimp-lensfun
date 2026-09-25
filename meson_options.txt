@@ -7,3 +7,10 @@ option('bundled_lensfun', type: 'feature', value: 'auto',
 option('lensfun_db', type: 'string', value: '',
   description: 'Folder with a lensfun database (version 1) to install with '
     + 'the plug-in, e.g. from https://lensfun.github.io/db/version_1.tar.bz2')
+option('gegl_op', type: 'feature', value: 'auto',
+  description: 'Also build lensfun:correct, the correction as a GEGL operation '
+    + '(a filter that GIMP keeps editable)')
+option('moduledir', type: 'string', value: '',
+  description: 'Folder of GEGL operations for lensfun:correct, default: the '
+    + 'system folder of GEGL. For a user installation use '
+    + '~/.local/share/gegl-0.4/plug-ins')

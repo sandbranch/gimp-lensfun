@@ -49,6 +49,7 @@ executable(meson.project_name(),
   'src/correct.cpp',
   'src/gimplensfun.cpp',
   'src/lensdb.cpp',
+  'src/lensdb-exif.cpp',
   dependencies: [gimp_dep, gimpui_dep, gegl_dep, lensfun_dep],
   cpp_args: bundle ? ['-DCONF_LENSFUN_STATIC'] : [],
   install: true,
@@ -65,4 +66,34 @@ endif
 if db_source != ''
   install_subdir(db_source, install_dir: plugindir / 'lensfun-db',
                  strip_directory: true)
+endif
+
+# lensfun:correct, the same correction as a GEGL operation. Its database
+# goes next to (not into) the folder of GEGL operations, which GEGL scans
+# for modules.
+if not get_option('gegl_op').disabled()
+  moduledir = get_option('moduledir')
+  if moduledir == ''
+    moduledir = gegl_dep.get_variable(pkgconfig: 'pluginsdir')
+  endif
+  op_db_dir = moduledir / '..' / 'lensfun-db'
+
+  shared_module('lensfun-correct',
+    'gegl/lensfun-correct.cc',
+    'src/correct.cpp',
+    'src/lensdb.cpp',
+    name_prefix: '',
+    include_directories: include_directories('src', 'gegl'),
+    dependencies: [gegl_dep, lensfun_dep],
+    cpp_args: [
+      '-DGETTEXT_PACKAGE="gimp-lensfun"',
+      '-DLENSFUN_OP_DB_DIR="' + op_db_dir + '"',
+    ] + (bundle ? ['-DCONF_LENSFUN_STATIC'] : []),
+    install: true,
+    install_dir: moduledir,
+  )
+
+  if db_source != ''
+    install_subdir(db_source, install_dir: op_db_dir, strip_directory: true)
+  endif
 endif

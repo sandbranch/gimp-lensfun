@@ -24,8 +24,8 @@
 #include <string>
 #include <vector>
 
+#include <glib.h>
 #include <lensfun.h>
-#include <libgimp/gimp.h>
 
 /* The camera and lens settings of a correction. */
 struct LensSettings
@@ -57,11 +57,7 @@ const lfCamera *lensdb_find_camera (const lfDatabase *db,
 const lfLens *lensdb_find_lens (const lfDatabase *db,
                                 const LensSettings &settings);
 
-/* Fill in the camera, lens, focal length and aperture from the Exif data
-   of the image. Returns FALSE if the image has no usable Exif data;
-   fields that cannot be determined are left empty or 0. */
-gboolean lensdb_settings_from_metadata (const lfDatabase *db,
-                                        GimpImage *image,
-                                        LensSettings &settings);
+/* The default (untranslated) variant of a multi-language string. */
+std::string lensdb_mlstr (const lfMLstr s);
 
 #endif /* LENSDB_H */

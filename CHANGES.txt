@@ -2,6 +2,10 @@ Changes:
 
 0.3.0
 #######################################
+- the correction also as a GEGL operation, lensfun:correct, which GIMP
+  keeps on the layer as an editable (non-destructive) filter; the
+  plug-in can add it with the settings from the Exif data ("Keep as an
+  editable filter", argument as-filter)
 - ported to GIMP 3; GIMP 2.x is no longer supported, use 0.2.4 for it
 - images of any precision, RGB and grayscale, with and without alpha,
   are corrected in linear light as float
