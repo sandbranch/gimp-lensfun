@@ -20,6 +20,7 @@
 
 #include <cfloat>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 
 #include <gegl.h>
@@ -176,6 +177,39 @@ colour_rows (gsize offset, gsize count, gpointer user_data)
                                     row * sizeof (float));
 }
 
+/* Lensfun 0.3 is less exact on whole rows than on single pixels: it
+   steps from pixel to pixel by adding a float, which adds up to 0.13 px
+   of error at the end of a 6000 px row, and its SSE code (taken when
+   the buffer is 16-byte aligned) takes square roots and reciprocals
+   with 12 bits of precision, another 0.3 px there. So the positions are
+   asked for in short parts, which start exactly, in a buffer that is not
+   16-byte aligned, which makes lensfun use its exact code. */
+static const int cPositionsChunk = 32;
+
+void
+lens_positions (const lfModifier *mod, int x, int y, int width, bool gray,
+                float *coords)
+{
+    int per_pixel = gray ? 2 : 6;
+    float buffer[cPositionsChunk * 6 + 4];
+    float *chunk = buffer;
+
+    if (((uintptr_t) chunk & 15) == 0)
+        chunk++;
+
+    for (int done = 0; done < width; done += cPositionsChunk)
+    {
+        int n = MIN (cPositionsChunk, width - done);
+
+        if (gray)
+            mod->ApplyGeometryDistortion (x + done, y, n, 1, chunk);
+        else
+            mod->ApplySubpixelGeometryDistortion (x + done, y, n, 1, chunk);
+        memcpy (coords + (size_t) done * per_pixel, chunk,
+                (size_t) n * per_pixel * sizeof (float));
+    }
+}
+
 static void
 geometry_rows (gsize offset, gsize count, gpointer user_data)
 {
@@ -189,10 +223,7 @@ geometry_rows (gsize offset, gsize count, gpointer user_data)
         float *out = d->dest + y * (size_t) img.width * img.channels;
 
         /* the position in the source of each colour of each pixel */
-        if (img.gray)
-            d->mod->ApplyGeometryDistortion (0, y, img.width, 1, coords);
-        else
-            d->mod->ApplySubpixelGeometryDistortion (0, y, img.width, 1, coords);
+        lens_positions (d->mod, 0, y, img.width, img.gray, coords);
 
         for (int x = 0; x < img.width; x++, out += img.channels)
         {

@@ -64,4 +64,11 @@ int lens_correct (const lfLens *lens, float crop, const LensSettings &settings,
                   const CorrectionOptions &options, FloatImage &src,
                   float *dest);
 
+/* The positions in the photo of the pixels [x, x + width) of row y of the
+   result: for each pixel two floats (x, y) if gray, else six (red, green,
+   blue). As exact as lensfun can give them, which its row functions are
+   not on their own (see correct.cpp). */
+void lens_positions (const lfModifier *mod, int x, int y, int width,
+                     bool gray, float *coords);
+
 #endif /* CORRECT_H */
