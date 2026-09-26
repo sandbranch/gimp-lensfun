@@ -1,0 +1,5 @@
+# LeakSanitizer suppressions for meson test with -Db_sanitize=address.
+#
+# lensfun 0.3.4 (bundled): lfDatabase::Load () never frees the name of
+# the system updates folder (system_updates_dirname).
+leak:lfDatabase::Load

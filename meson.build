@@ -97,3 +97,31 @@ if not get_option('gegl_op').disabled()
     install_subdir(db_source, install_dir: op_db_dir, strip_directory: true)
   endif
 endif
+
+# Unit tests of the database functions and the correction, without GIMP
+# (meson test). They need a database: the one that is installed, if any.
+test_lensfun = executable('test-lensfun',
+  'tests/test-lensfun.cpp',
+  'src/correct.cpp',
+  'src/lensdb.cpp',
+  include_directories: include_directories('src'),
+  dependencies: [gegl_dep, lensfun_dep],
+  cpp_args: bundle ? ['-DCONF_LENSFUN_STATIC'] : [],
+  build_by_default: false,
+)
+test_env = environment()
+# not the user's database updates and own lenses
+test_env.set('XDG_DATA_HOME', meson.current_build_dir() / 'test-data')
+# no GEGL operations are needed: none are loaded
+test_env.set('GEGL_PATH', meson.current_build_dir() / 'test-data')
+# for -Db_sanitize=address,undefined: reports about lensfun itself
+test_env.set('UBSAN_OPTIONS', 'halt_on_error=1:print_stacktrace=1:suppressions='
+             + meson.current_source_dir() / 'tests' / 'ubsan.supp')
+test_env.set('LSAN_OPTIONS', 'suppressions='
+             + meson.current_source_dir() / 'tests' / 'lsan.supp')
+test('lensfun', test_lensfun, args: [db_source], env: test_env,
+     timeout: 120)
+# meson test --setup valgrind: reads of uninitialized memory
+add_test_setup('valgrind',
+  exe_wrapper: ['valgrind', '--error-exitcode=1', '--leak-check=no'],
+  timeout_multiplier: 20)

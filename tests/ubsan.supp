@@ -1,0 +1,7 @@
+# UndefinedBehaviorSanitizer suppressions for meson test with
+# -Db_sanitize=address,undefined.
+#
+# lensfun 0.3.4 (bundled) calls memcpy (str + n, NULL, 0) in lf_mlstr_add
+# when it reads the first name of a mount; the copy is empty, so this is
+# harmless, and it is lensfun's code, not ours.
+nonnull-attribute:lf_mlstr_add
