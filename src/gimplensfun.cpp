@@ -650,8 +650,10 @@ lensfun_dialog (GimpProcedure *procedure, GimpProcedureConfig *config,
     d.preview = gimp_aspect_preview_new_from_drawable (drawable);
     gtk_widget_set_size_request (d.preview, 360, 240);
     g_signal_connect (d.preview, "invalidated", G_CALLBACK (preview_update), &d);
-    g_signal_connect_swapped (config, "notify",
-                              G_CALLBACK (gimp_preview_invalidate), d.preview);
+    /* the config outlives the dialog: disconnect when the preview goes */
+    g_signal_connect_object (config, "notify",
+                             G_CALLBACK (gimp_preview_invalidate), d.preview,
+                             G_CONNECT_SWAPPED);
     box = custom_box (dialog, "preview-box");
     gtk_box_pack_start (GTK_BOX (box), d.preview, TRUE, TRUE, 0);
     gtk_widget_show (d.preview);
