@@ -30,7 +30,6 @@
 /* interpolation parameters */
 static const int cLanczosWidth = 2;
 static const int cLanczosTableRes = 256;
-static LUT<float> LanczosLUT (cLanczosWidth * 2 * cLanczosTableRes + 1);
 
 static float
 Lanczos (float x)
@@ -45,28 +44,39 @@ Lanczos (float x)
     return (cLanczosWidth * sin (xpi) * sin (xpi / cLanczosWidth)) / (xpi * xpi);
 }
 
-static void
-InitLanczos ()
+/* The Lanczos kernel from -cLanczosWidth to +cLanczosWidth, filled once
+   (thread-safe, as a function-local static), including the last entry,
+   which the linear interpolation of LUT reads too. */
+struct LanczosTable
 {
-    static bool done = false;
+    LUT<float> lut;
 
-    if (done)
-        return;
-    for (int i = -cLanczosWidth * cLanczosTableRes;
-         i < cLanczosWidth * cLanczosTableRes; i++)
-        LanczosLUT[i + cLanczosWidth * cLanczosTableRes] =
-            Lanczos (static_cast<float> (i) / static_cast<float> (cLanczosTableRes));
-    done = true;
+    LanczosTable () : lut (cLanczosWidth * 2 * cLanczosTableRes + 1)
+    {
+        for (int i = -cLanczosWidth * cLanczosTableRes;
+             i <= cLanczosWidth * cLanczosTableRes; i++)
+            lut[i + cLanczosWidth * cLanczosTableRes] =
+                Lanczos (static_cast<float> (i) / static_cast<float> (cLanczosTableRes));
+    }
+};
+
+static LUT<float> &
+lanczos_lut ()
+{
+    static LanczosTable table;
+    return table.lut;
 }
 
 /* A sample is outside of the image when it is more than half a pixel
    beyond the outer pixel centers; inside, pixels beyond the border are
-   taken from the border, so that the edges do not turn dark. */
+   taken from the border, so that the edges do not turn dark. Positions
+   that are not numbers (a geometry conversion beyond what the target
+   projection can show) are outside too. */
 static inline bool
 outside (const FloatImage &img, float x, float y)
 {
-    return x < -0.5f || y < -0.5f ||
-           x > img.width - 0.5f || y > img.height - 0.5f;
+    return !(x >= -0.5f && y >= -0.5f &&
+             x <= img.width - 0.5f && y <= img.height - 0.5f);
 }
 
 static inline float
@@ -78,7 +88,8 @@ pixel (const FloatImage &img, int x, int y, int chan)
 }
 
 static inline float
-InterpolateLanczos (const FloatImage &img, float xpos, float ypos, int chan)
+InterpolateLanczos (LUT<float> &LanczosLUT, const FloatImage &img,
+                    float xpos, float ypos, int chan)
 {
     int xl = int (floorf (xpos));
     int yl = int (floorf (ypos));
@@ -120,8 +131,8 @@ InterpolateNearest (const FloatImage &img, float xpos, float ypos, int chan)
 }
 
 static inline float
-interpolate (const FloatImage &img, Interpolation interpolation,
-             float x, float y, int chan)
+interpolate (LUT<float> &lut, const FloatImage &img,
+             Interpolation interpolation, float x, float y, int chan)
 {
     switch (interpolation)
     {
@@ -130,7 +141,7 @@ interpolate (const FloatImage &img, Interpolation interpolation,
     case INTERPOLATION_LINEAR:
         return InterpolateLinear (img, x, y, chan);
     default:
-        return InterpolateLanczos (img, x, y, chan);
+        return InterpolateLanczos (lut, img, x, y, chan);
     }
 }
 
@@ -150,7 +161,7 @@ struct PassData
     FloatImage *src;
     float *dest;
     Interpolation interpolation;
-    bool geometry;
+    LUT<float> *lanczos;
 };
 
 static void
@@ -193,11 +204,13 @@ geometry_rows (gsize offset, gsize count, gpointer user_data)
             {
                 const float *p = img.gray ? pos : pos + 2 * c;
                 out[c] = outside (img, p[0], p[1]) ? 0.0f
-                         : interpolate (img, d->interpolation, p[0], p[1], c);
+                         : interpolate (*d->lanczos, img, d->interpolation,
+                                        p[0], p[1], c);
             }
             if (img.alpha)
                 out[colours] = outside (img, mid[0], mid[1]) ? 0.0f
-                               : interpolate (img, d->interpolation, mid[0],
+                               : interpolate (*d->lanczos, img,
+                                              d->interpolation, mid[0],
                                               mid[1], colours);
         }
     }
@@ -213,6 +226,14 @@ lens_correct (const lfLens *lens, float crop, const LensSettings &settings,
     lfLensType target;
     PassData data;
     size_t bytes = (size_t) src.width * src.height * src.channels * sizeof (float);
+
+    if (src.width <= 0 || src.height <= 0)
+        return 0;
+    if (!lens)
+    {
+        memcpy (dest, src.pixels, bytes);
+        return 0;
+    }
 
     if (options.distortion)
         flags |= LF_MODIFY_DISTORTION;
@@ -236,6 +257,7 @@ lens_correct (const lfLens *lens, float crop, const LensSettings &settings,
     data.src = &src;
     data.dest = dest;
     data.interpolation = options.interpolation;
+    data.lanczos = &lanczos_lut ();
 
     /* first the colours of all pixels, then the geometry, which reads
        the neighbours of every pixel */
@@ -244,10 +266,7 @@ lens_correct (const lfLens *lens, float crop, const LensSettings &settings,
 
     if (applied & (LF_MODIFY_DISTORTION | LF_MODIFY_TCA | LF_MODIFY_GEOMETRY |
                    LF_MODIFY_SCALE))
-    {
-        InitLanczos ();
         gegl_parallel_distribute_range (src.height, 2.0, geometry_rows, &data);
-    }
     else
         memcpy (dest, src.pixels, bytes);
 
