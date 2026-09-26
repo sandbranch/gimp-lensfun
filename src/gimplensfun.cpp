@@ -391,6 +391,13 @@ correct_drawable (GimpDrawable *drawable, const lfDatabase *db,
 
     if (!check_settings (db, settings, error))
         return FALSE;
+    if (gimp_item_is_group (GIMP_ITEM (drawable)))
+    {
+        g_set_error (error, GIMP_PLUG_IN_ERROR, 0,
+                     "The pixels of a layer group cannot be changed; keep "
+                     "the correction as an editable filter instead.");
+        return FALSE;
+    }
 
     /* the whole layer is the photo, its center the optical center; the
        selection only limits where the result is applied */
@@ -430,12 +437,17 @@ correct_drawable (GimpDrawable *drawable, const lfDatabase *db,
     gegl_buffer_set (buffer, GEGL_RECTANGLE (0, 0, src.width, src.height), 0,
                      format, dest, GEGL_AUTO_ROWSTRIDE);
     g_object_unref (buffer);
-    gimp_drawable_merge_shadow (drawable, TRUE);
-    gimp_drawable_update (drawable, 0, 0, src.width, src.height);
-    gimp_progress_update (1.0);
-
     g_free (dest);
     g_free (src.pixels);
+    if (!gimp_drawable_merge_shadow (drawable, TRUE))
+    {
+        g_set_error (error, GIMP_PLUG_IN_ERROR, 0,
+                     "The corrected pixels could not be applied to the "
+                     "drawable.");
+        return FALSE;
+    }
+    gimp_drawable_update (drawable, 0, 0, src.width, src.height);
+    gimp_progress_update (1.0);
     return TRUE;
 }
 
