@@ -20,7 +20,13 @@ can be switched on. "Target geometry" converts the projection, for example
 a fisheye photo to a normal (rectilinear) perspective.
 
 The whole layer is taken as the photo, with the optical center in its
-middle; a selection only limits where the result is applied.
+middle; a selection only limits where the result is applied. The pixels
+of a layer group cannot be changed; keep the correction as an editable
+filter there (below).
+
+When the Exif data name a lens that the database does not know, or no
+lens at all, the lens has to be chosen: the plug-in only picks one by
+itself for cameras with a fixed lens.
 
 Images of any precision (8 and 16 bit, floating point), RGB and grayscale,
 with or without alpha, are corrected in linear light at full precision.
@@ -88,11 +94,30 @@ or with [gimp-plugin-devtools](https://github.com/sandbranch/gimp-plugin-devtool
     gimp-build.sh . meson setup build -Dplugindir=\$GIMP_PLUGINDIR -Dmoduledir=\$GEGL_OPDIR
     gimp-build.sh . ninja -C build install
 
-`tests/compare.sh` corrects a grid with the installed plug-in and filter
-and checks that they agree.
-
 Restart GIMP after installing.
 
+## Tests
+
+    tests/run.sh
+
+builds into `tests/output` (not into GIMP's folders) and runs all tests
+without a display or the network, printing PASS or FAIL for each and
+exiting non-zero if any failed: the unit tests (`meson test`, also under
+valgrind if it is installed), lensfun:correct in GEGL alone, and GIMP
+without a window in a throwaway profile that loads only the test build
+(plug-in and filter agree, 8/16-bit and float, gray, alpha, Exif data,
+the gegl command line, and more). It uses gimp-plugin-devtools for the
+Flatpak GIMP, next to this repository or given as `$GIMP_BUILD`. Close
+GIMP first. The unit tests need a database: the bundled lensfun's, or
+one given with `-Dlensfun_db`; without one they are skipped.
+
+With AddressSanitizer and UndefinedBehaviorSanitizer:
+
+    meson setup build-asan -Db_sanitize=address,undefined -Db_lundef=false
+    meson test -C build-asan
+
+`tests/compare.sh` corrects a grid with the *installed* plug-in and
+filter and checks that they agree.
 ## License
 
 GPL version 3 or later, see LICENSE.txt. Lensfun is LGPL 3; its database is

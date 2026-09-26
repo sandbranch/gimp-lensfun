@@ -414,7 +414,7 @@ def _():
 
 @case('Exif: non-ASCII maker, no model')
 def _():
-    image, layer = with_exif({'Exif.Image.Make': 'Níkøn —'})
+    image, layer = with_exif({'Exif.Image.Make': 'N\u00edk\u00f8n \u20ac'})
     assert run_plugin(image, settings={}) == ERROR
 
 

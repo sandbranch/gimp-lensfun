@@ -292,7 +292,7 @@ test_exif ()
 
     /* unknown cameras keep their names, for the messages */
     lensdb_settings_from_exif (db, "\xc3\x91\xc3\xad" "k\xc3\xb8n \xff", "X 1",
-                               "\xe2\x80\x94", s);
+                               "\xe2\x82\xac", s);
     CHECK (s.maker == "\xc3\x91\xc3\xad" "k\xc3\xb8n \xff");
     CHECK (s.camera == "X 1");
     CHECK (s.lens.empty ());
