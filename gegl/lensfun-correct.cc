@@ -107,7 +107,11 @@ property_enum (interpolation, _("Interpolation"), LensfunInterpolation,
 #include "correct.h"
 #include "lensdb.h"
 
-/* the database is read once per GIMP session */
+/* the database is read once per GIMP session. Looking things up in it
+ * is not thread-safe in lensfun 0.3 (lf_mlstr_get uses a static buffer,
+ * FindLenses writes a score into the lenses), so lookups hold this lock */
+static GMutex lookup_lock;
+
 static lfDatabase *
 database (void)
 {
@@ -134,8 +138,13 @@ static void
 prepare (GeglOperation *operation)
 {
   const Babl *space  = gegl_operation_get_source_space (operation, "input");
-  /* the correction works in linear light */
-  const Babl *format = babl_format_with_space ("RGBA float", space);
+  const Babl *source = gegl_operation_get_source_format (operation, "input");
+  gboolean    gray   = source &&
+    (babl_get_model_flags (babl_format_get_model (source)) & BABL_MODEL_FLAG_GRAY);
+  /* the correction works in linear light; gray stays gray, as in the
+   * plug-in, which has no chromatic aberration to correct */
+  const Babl *format = babl_format_with_space (gray ? "YA float" : "RGBA float",
+                                               space);
 
   gegl_operation_set_format (operation, "input", format);
   gegl_operation_set_format (operation, "output", format);
@@ -162,6 +171,17 @@ get_cached_region (GeglOperation       *operation,
   return in ? *in : *roi;
 }
 
+/* and a change anywhere can move or scale all of the result */
+static GeglRectangle
+get_invalidated_by_change (GeglOperation       *operation,
+                           const gchar         *input_pad,
+                           const GeglRectangle *input_region)
+{
+  const GeglRectangle *in = gegl_operation_source_get_bounding_box (operation, "input");
+
+  return in ? *in : *input_region;
+}
+
 static gboolean
 process (GeglOperation       *operation,
          GeglBuffer          *input,
@@ -179,6 +199,7 @@ process (GeglOperation       *operation,
   const lfLens        *lens;
   FloatImage           src;
   float               *dest;
+  gsize                size;
 
   settings.maker    = o->camera_maker ? o->camera_maker : "";
   settings.camera   = o->camera_model ? o->camera_model : "";
@@ -186,8 +207,10 @@ process (GeglOperation       *operation,
   settings.focal    = o->focal_length;
   settings.aperture = o->aperture;
 
+  g_mutex_lock (&lookup_lock);
   camera = lensdb_find_camera (db, settings);
   lens   = lensdb_find_lens (db, settings);
+  g_mutex_unlock (&lookup_lock);
 
   /* not in the database (or not set yet): the photo stays as it is */
   if (!camera || !lens || !whole)
@@ -209,11 +232,23 @@ process (GeglOperation       *operation,
 
   src.width    = whole->width;
   src.height   = whole->height;
-  src.channels = 4;
-  src.gray     = false;
+  src.channels = babl_format_get_n_components (format);
+  src.gray     = src.channels == 2;
   src.alpha    = true;
-  src.pixels   = (float *) g_malloc ((gsize) src.width * src.height * 4 * sizeof (float));
-  dest         = (float *) g_malloc ((gsize) src.width * src.height * 4 * sizeof (float));
+  size         = (gsize) src.width * src.height * src.channels * sizeof (float);
+  src.pixels   = (float *) g_try_malloc (size);
+  dest         = (float *) g_try_malloc (size);
+
+  /* this runs inside GIMP, which must not abort for want of memory */
+  if (!src.pixels || !dest)
+    {
+      g_warning ("lensfun:correct: not enough memory for %d x %d pixels",
+                 src.width, src.height);
+      g_free (dest);
+      g_free (src.pixels);
+      gegl_buffer_copy (input, result, GEGL_ABYSS_NONE, output, result);
+      return TRUE;
+    }
 
   gegl_buffer_get (input, whole, 1.0, format, src.pixels,
                    GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_NONE);
@@ -235,6 +270,7 @@ gegl_op_class_init (GeglOpClass *klass)
   operation_class->prepare                 = prepare;
   operation_class->get_required_for_output = get_required_for_output;
   operation_class->get_cached_region       = get_cached_region;
+  operation_class->get_invalidated_by_change = get_invalidated_by_change;
   /* lens_correct spreads its work over GEGL's threads itself */
   operation_class->threaded                = FALSE;
   filter_class->process                    = process;
