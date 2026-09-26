@@ -54,11 +54,11 @@ lensdb_load (const gchar *db_dir)
 
     bool loaded;
 
-    /* the newer of the copy of the plug-in and the user's updates */
-    if (db_timestamp (updates) > db_timestamp (db_dir))
-        loaded = db->LoadDirectory (updates);
-    else
-        loaded = db->LoadDirectory (db_dir);
+    /* the newer of the copy of the plug-in and the user's updates, and
+       the copy of the plug-in if the updates cannot be read */
+    loaded = (db_timestamp (updates) > db_timestamp (db_dir) &&
+              db->LoadDirectory (updates)) ||
+             db->LoadDirectory (db_dir);
 
     if (loaded)
         /* the user's own definitions, which override the others */
@@ -179,4 +179,75 @@ lensdb_find_lens (const lfDatabase *db, const LensSettings &settings)
         }
     lf_free (lenses);
     return found;
+}
+
+static void
+replace_all (std::string &str, const std::string &old, const std::string &by)
+{
+    for (size_t pos = str.find (old); pos != std::string::npos;
+         pos = str.find (old, pos + by.size ()))
+        str.replace (pos, old.size (), by);
+}
+
+void
+lensdb_settings_from_exif (const lfDatabase *db, const std::string &make,
+                           const std::string &model,
+                           const std::string &lens_name,
+                           LensSettings &settings)
+{
+    const lfCamera **cameras;
+    const lfCamera *camera = NULL;
+    const lfLens **lenses = NULL;
+    std::string name = lens_name;
+    gchar *maker_lc;
+
+    settings = LensSettings ();
+    if (make.empty ())
+        return;
+
+    /* the camera, as the database names it; without a model lensfun
+       would return all cameras of the maker */
+    cameras = model.empty () ? NULL
+                             : db->FindCameras (make.c_str (), model.c_str ());
+    if (cameras)
+    {
+        camera = cameras[0];
+        settings.maker = lensdb_mlstr (camera->Maker);
+        settings.camera = lensdb_mlstr (camera->Model);
+    }
+    else
+    {
+        settings.maker = make;
+        settings.camera = model;
+    }
+    lf_free (cameras);
+    if (!camera)
+        return;
+
+    maker_lc = g_ascii_strdown (make.c_str (), -1);
+    if (strstr (maker_lc, "nikon"))
+    {
+        /* modify some lens names for better searching in the database */
+        replace_all (name, "Nikon", "");
+        replace_all (name, "Zoom-Nikkor", "");
+    }
+    g_free (maker_lc);
+
+    /* only take lens names of significant length */
+    if (name.size () > 8)
+        lenses = db->FindLenses (camera, NULL, name.c_str ());
+    if (!lenses)
+    {
+        /* no name, or not one the database knows: only a lens that is the
+           only one for the camera (a fixed lens) is the lens for sure */
+        lenses = db->FindLenses (camera, NULL, NULL);
+        if (lenses && lenses[0] && lenses[1])
+        {
+            lf_free (lenses);
+            lenses = NULL;
+        }
+    }
+    if (lenses && lenses[0])
+        settings.lens = lensdb_mlstr (lenses[0]->Model);
+    lf_free (lenses);
 }

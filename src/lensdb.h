@@ -57,6 +57,17 @@ const lfCamera *lensdb_find_camera (const lfDatabase *db,
 const lfLens *lensdb_find_lens (const lfDatabase *db,
                                 const LensSettings &settings);
 
+/* The camera and lens of a photo, as the database names them, from the
+   maker, model and lens name of its Exif data; the focal length and
+   aperture are left 0. Without a lens name that the database recognizes,
+   the lens is only chosen when it is the only one that fits the camera
+   (a camera with a fixed lens). Fields that cannot be determined are
+   left empty. */
+void lensdb_settings_from_exif (const lfDatabase *db, const std::string &make,
+                                const std::string &model,
+                                const std::string &lens_name,
+                                LensSettings &settings);
+
 /* The default (untranslated) variant of a multi-language string. */
 std::string lensdb_mlstr (const lfMLstr s);
 
