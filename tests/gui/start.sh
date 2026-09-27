@@ -29,6 +29,6 @@ cp -R "$installed" "$tests/output/gui-profile/plug-ins/"
 gimp_run --flatpak --filesystem="$tests" --env=GDK_BACKEND=broadway --env=BROADWAY_DISPLAY=:5 \
   --env=GIMP3_DIRECTORY="$tests/output/gui-profile" --env=GEGL_PATH="$gegl_path" \
   --env=LF_IMAGE="$tests/output/grid.png" -- sh -c \
-  "broadwayd --port 8085 :5 & bw=\$!; sleep 2; gimp-3.2 --no-splash \
+  "broadwayd --port 8085 :5 & bw=\$!; sleep 2; gimp-3.2 --new-instance --no-splash \
    --batch-interpreter python-fu-eval -b \"exec(open('$here/open-dialog.py').read())\";
    kill \$bw"
