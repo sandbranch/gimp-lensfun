@@ -7,7 +7,7 @@ aberration (colour fringes) and the vignetting of photos, using the
 This is the GIMP 3 version of Sebastian Kraft's
 [GIMP-Lensfun](https://github.com/seebk/GIMP-Lensfun), whose last release was
 for GIMP 2.x. Please report problems with it at
-https://github.com/sandbranch/GIMP-Lensfun/issues.
+https://github.com/sandbranch/gimp-lensfun/issues.
 
 ## Using it
 
