@@ -11,14 +11,14 @@
 # 4. GIMP without a window, in a throwaway profile that loads only the
 #    test build (tests/gimp-test.py), and the gegl command line.
 #
-# With the Flatpak GIMP it builds with gimp-plugin-devtools/gimp-build.sh
+# With the Flatpak GIMP it builds with gimp-devtools/gimp-build.sh
 # (next to this repository, or $GIMP_BUILD). The builds, GEGL and GIMP
 # run isolated from your folders (tests/isolate.sh, with
-# gimp-plugin-devtools/gimp-run.sh): HOME and the XDG folders inside the
+# gimp-devtools/gimp-run.sh): HOME and the XDG folders inside the
 # Flatpak point into tests/output/gimp-home, so nothing lands in
 # ~/.var/app/org.gimp.GIMP, and your lensfun updates are not used. Before
 # and after, it lists your folders of GIMP and the other apps
-# (gimp-plugin-devtools/snapshot.sh) and fails if anything there changed.
+# (gimp-devtools/snapshot.sh) and fails if anything there changed.
 # Exits non-zero if anything failed.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -26,7 +26,7 @@ top=$(dirname "$here")
 out="$here/output"
 install="$out/install"
 build="$out/build"
-gimp_build=${GIMP_BUILD:-$top/../gimp-plugin-devtools/gimp-build.sh}
+gimp_build=${GIMP_BUILD:-$top/../gimp-devtools/gimp-build.sh}
 failed=0
 
 step () { echo; echo "== $*"; }

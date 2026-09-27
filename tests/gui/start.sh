@@ -1,7 +1,7 @@
 #!/bin/sh
 # Opens the plug-in's dialog on the test grid in the Flatpak GIMP on a
 # Broadway display (http://127.0.0.1:8085/), to look at it with
-# gimp-plugin-devtools/gui/cdp.mjs. Run tests/compare.sh first (it makes
+# gimp-devtools/gui/cdp.mjs. Run tests/compare.sh first (it makes
 # the grid). Broadway stops when GIMP quits.
 # GIMP runs with a throwaway profile and isolated from your folders
 # (tests/isolate.sh): the installed plug-in is copied from your plug-in

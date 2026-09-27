@@ -89,7 +89,7 @@ Flatpak, with the GNOME SDK that GIMP was built with (see
          -Dmoduledir=$XDG_DATA_HOME/gegl-0.4/plug-ins &&
        ninja -C build install'
 
-or with [gimp-plugin-devtools](https://github.com/sandbranch/gimp-plugin-devtools):
+or with [gimp-devtools](https://github.com/sandbranch/gimp-devtools):
 
     gimp-build.sh . meson setup build -Dplugindir=\$GIMP_PLUGINDIR -Dmoduledir=\$GEGL_OPDIR
     gimp-build.sh . ninja -C build install
@@ -106,7 +106,7 @@ exiting non-zero if any failed: the unit tests (`meson test`, also under
 valgrind if it is installed), lensfun:correct in GEGL alone, and GIMP
 without a window in a throwaway profile that loads only the test build
 (plug-in and filter agree, 8/16-bit and float, gray, alpha, Exif data,
-the gegl command line, and more). It uses gimp-plugin-devtools for the
+the gegl command line, and more). It uses gimp-devtools for the
 Flatpak GIMP, next to this repository or given as `$GIMP_BUILD`. Close
 GIMP first. The unit tests need a database: the bundled lensfun's, or
 one given with `-Dlensfun_db`; without one they are skipped.
