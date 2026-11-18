@@ -17,7 +17,7 @@ endif
 plugindir = plugindir / meson.project_name()
 
 # Lensfun 0.3: the system library, or built from source and linked in,
-# which makes the plug-in independent of the system (e.g. in Flatpak).
+# which makes the plug-in independent of the system's lensfun.
 if get_option('bundled_lensfun').enabled()
   lensfun_dep = dependency('', required: false)
 else

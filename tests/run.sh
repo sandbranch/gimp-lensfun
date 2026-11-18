@@ -11,12 +11,11 @@
 # 4. GIMP without a window, in a throwaway profile that loads only the
 #    test build (tests/gimp-test.py), and the gegl command line.
 #
-# With the Flatpak GIMP it builds with gimp-devtools/gimp-build.sh
+# It builds against the native GIMP with gimp-devtools/gimp-build.sh
 # (next to this repository, or $GIMP_BUILD). The builds, GEGL and GIMP
 # run isolated from your folders (tests/isolate.sh, with
-# gimp-devtools/gimp-run.sh): HOME and the XDG folders inside the
-# Flatpak point into tests/output/gimp-home, so nothing lands in
-# ~/.var/app/org.gimp.GIMP, and your lensfun updates are not used. Before
+# gimp-devtools/gimp-run.sh): HOME and the XDG folders point into
+# tests/output/gimp-home, so your lensfun updates are not used. Before
 # and after, it lists your folders of GIMP and the other apps
 # (gimp-devtools/snapshot.sh) and fails if anything there changed.
 # Exits non-zero if anything failed.
@@ -68,9 +67,10 @@ else
     echo "SKIP valgrind is not installed"
 fi
 
-# GEGL loads operations from GEGL_PATH only; a folder with just the
-# operation, since the JSON files meson writes in a build folder crash it
-gegl_path="$install/gegl:/app/lib/gegl-0.4"
+# GEGL loads operations from GEGL_PATH only: a folder with just the
+# operation, since the JSON files meson writes in a build folder crash it,
+# and GEGL's own operations
+gegl_path="$install/gegl:$(pkg-config --variable=pluginsdir gegl-0.4)"
 
 # the user's lensfun updates and GEGL operations are not used
 data="$out/xdg-data"
@@ -81,26 +81,29 @@ cat >"$profile/gimprc" <<RC
 (plug-in-path "$install/plug-ins:\${gimp_plug_in_dir}/plug-ins")
 RC
 
-# run_flatpak <command...>: in the GIMP Flatpak
-run_flatpak () {
-    gimp_run --flatpak --filesystem="$top" --env=GEGL_PATH="$gegl_path" \
+# run_isolated <command...>: GEGL or GIMP with the test build.
+# BABL_TOLERANCE=0: babl's exact conversions. Otherwise babl picks among
+# fast ones that differ in the last bit, not the same in every run, and
+# a value right between two 8-bit levels comes out one level apart.
+run_isolated () {
+    gimp_run --env=BABL_TOLERANCE=0 --env=GEGL_PATH="$gegl_path" \
         --env=XDG_DATA_HOME="$data" --env=GIMP3_DIRECTORY="$profile" \
         --env=LF_TEST_OUT="$out" --env=LF_TEST_INSTALL="$install" \
         -- "$@"
 }
 
 step GEGL
-run_flatpak python3 "$here/gegl-cache.py" \
+run_isolated python3 "$here/gegl-cache.py" \
     >"$out/gegl.log" 2>&1
 grep -E '^(PASS|FAIL|    )' "$out/gegl.log"
 grep -q '^PASS' "$out/gegl.log" && ! grep -q '^FAIL' "$out/gegl.log" ||
     { tail -5 "$out/gegl.log"; fail "GEGL"; }
 
 step GIMP
-run_flatpak gimp-console-3.2 --no-interface \
+run_isolated gimp-console-3.2 --no-interface \
     --no-data --no-fonts --batch-interpreter python-fu-eval \
     -b "exec(open('$here/gimp-test.py').read())" --quit >"$out/gimp.log" 2>&1
-grep -E '^(PASS|FAIL|    )' "$out/gimp.log"
+grep -E '^(PASS|FAIL|SKIP|    )' "$out/gimp.log"
 grep -q '^PASS: ' "$out/gimp.log" ||
     { tail -20 "$out/gimp.log"; fail "GIMP"; }
 

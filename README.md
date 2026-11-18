@@ -49,47 +49,42 @@ geometry and the interpolation, and `as-filter` to add the filter.
 
 ## The lens database
 
-The plug-in installs the lensfun database next to itself. If you run
-`lensfun-update-data`, or download a newer database into
-`~/.local/share/lensfun/updates/version_1` (for the Flatpak version of GIMP,
-`~/.var/app/org.gimp.GIMP/data/lensfun/updates/version_1`), the newer one is
-used. The database is updated daily at
+When lensfun is built in (below), the plug-in installs the lensfun
+database next to itself, and the filter a copy in
+`~/.local/share/gegl-0.4/lensfun-db`. If you run `lensfun-update-data`
+(on Debian and Ubuntu in the package `liblensfun-bin`), or download a newer
+database into `~/.local/share/lensfun/updates/version_1`, the newer one is
+used. Built against the system's lensfun, both use the database of the
+lensfun library (`/usr/share/lensfun`), with those updates. The database is updated daily at
 https://lensfun.github.io/db/version_1.tar.bz2; `lensfun-update-data` also
 writes a `timestamp.txt` there with the time stamp from
 https://lensfun.github.io/db/versions.json.
 
 ## Building and installing
 
-Needs meson, ninja, a C++ compiler, the GIMP 3 development files, and either
-lensfun 0.3 or, to build lensfun from source, CMake and git.
+Needs the native GIMP 3 with its development files, meson, ninja, a C++
+compiler, and either the lensfun 0.3 development files or, to build
+lensfun from source, CMake and git. On Debian and Ubuntu:
+
+    sudo apt install gimp libgimp-3.0-dev meson ninja-build g++ liblensfun-dev
+
+(or `cmake git` instead of `liblensfun-dev`). Then:
 
     meson setup build -Dplugindir=$HOME/.config/GIMP/3.2/plug-ins \
       -Dmoduledir=$HOME/.local/share/gegl-0.4/plug-ins
     ninja -C build install
 
-`-Dmoduledir` is where GEGL loads operations from (for the Flatpak version
-of GIMP, `~/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins`); the filter's
-copy of the database goes into `lensfun-db` next to that folder.
-`-Dgegl_op=disabled` builds only the plug-in.
+`-Dmoduledir` is where GEGL loads operations from; the filter's copy of
+the database goes into `lensfun-db` next to that folder, and the filter
+finds it by the path given at build time, so build again after moving
+the folders. `-Dgegl_op=disabled` builds only the plug-in.
 
 Lensfun 0.3.4 is built from source and linked in when the system has no
 lensfun 0.3 (`-Dbundled_lensfun=enabled` forces it). Its database is then
 installed with the plug-in; `-Dlensfun_db=<folder>` installs another one.
 
-### Flatpak GIMP
-
-The Flatpak version of GIMP has no lensfun. Build against the GIMP of the
-Flatpak, with the GNOME SDK that GIMP was built with (see
-`flatpak info org.gimp.GIMP`); lensfun is then built in:
-
-    flatpak install --user flathub org.gnome.Sdk//50
-    flatpak run --devel --filesystem=$PWD --filesystem=~/.config/GIMP \
-      --env=PKG_CONFIG_PATH=/app/lib/pkgconfig --command=sh org.gimp.GIMP -c \
-      'meson setup build -Dplugindir=$HOME/.config/GIMP/3.2/plug-ins \
-         -Dmoduledir=$XDG_DATA_HOME/gegl-0.4/plug-ins &&
-       ninja -C build install'
-
-or with [gimp-devtools](https://github.com/sandbranch/gimp-devtools):
+Or with [gimp-devtools](https://github.com/sandbranch/gimp-devtools),
+which finds the folders of the GIMP it builds for:
 
     gimp-build.sh . meson setup build -Dplugindir=\$GIMP_PLUGINDIR -Dmoduledir=\$GEGL_OPDIR
     gimp-build.sh . ninja -C build install
@@ -106,8 +101,8 @@ exiting non-zero if any failed: the unit tests (`meson test`, also under
 valgrind if it is installed), lensfun:correct in GEGL alone, and GIMP
 without a window in a throwaway profile that loads only the test build
 (plug-in and filter agree, 8/16-bit and float, gray, alpha, Exif data,
-the gegl command line, and more). It uses gimp-devtools for the
-Flatpak GIMP, next to this repository or given as `$GIMP_BUILD`. Close
+the gegl command line, and more). It builds with gimp-devtools, next to
+this repository or given as `$GIMP_BUILD`. Close
 GIMP first. The unit tests need a database: the bundled lensfun's, or
 one given with `-Dlensfun_db`; without one they are skipped.
 

@@ -27,7 +27,7 @@ Changes:
 - the database of the plug-in or the user's newer updates by
   lensfun-update-data are used
 - build system is meson; lensfun 0.3.4 is built in if the system has no
-  lensfun 0.3, e.g. for the Flatpak version of GIMP
+  lensfun 0.3
 
 0.2.4
 #######################################

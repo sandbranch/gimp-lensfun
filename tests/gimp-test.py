@@ -3,6 +3,7 @@
 # that they agree. Prints PASS or FAIL for each case, then a summary.
 import array
 import os
+import shutil
 import subprocess
 import traceback
 
@@ -22,12 +23,18 @@ proc = pdb.lookup_procedure('plug-in-lensfun')
 results = []
 
 
+class Skip(Exception):
+    """Raised by a case that cannot run here; the message says why."""
+
+
 def case(name):
     def wrap(fn):
         try:
             fn()
             results.append(True)
             print('PASS', name)
+        except Skip as why:
+            print('SKIP %s: %s' % (name, why))
         except Exception:
             results.append(False)
             print('FAIL', name)
@@ -428,6 +435,8 @@ def gegl_cli(src, dest, **props):
 
 @case('gegl command line: same result as the plug-in, unknown passes')
 def _():
+    if not shutil.which('gegl'):
+        raise Skip('no gegl command (on Debian and Ubuntu the package gegl)')
     grid = os.path.join(OUT, 'grid.png')
     image, layer = make_image(alpha=True)
     Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, image,

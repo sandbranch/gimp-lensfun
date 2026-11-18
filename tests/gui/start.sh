@@ -1,5 +1,5 @@
 #!/bin/sh
-# Opens the plug-in's dialog on the test grid in the Flatpak GIMP on a
+# Opens the plug-in's dialog on the test grid in the native GIMP on a
 # Broadway display (http://127.0.0.1:8085/), to look at it with
 # gimp-devtools/gui/cdp.mjs. Run tests/compare.sh first (it makes
 # the grid). Broadway stops when GIMP quits.
@@ -7,7 +7,7 @@
 # (tests/isolate.sh): the installed plug-in is copied from your plug-in
 # folder into the profile (only it: other plug-ins of yours can change
 # their own folders when GIMP starts them), the installed filter is read
-# from your GEGL folder of the Flatpak, nothing is written there or
+# from your GEGL folder, nothing is written there or
 # anywhere else of yours, and a GIMP of yours does not matter.
 here=$(cd "$(dirname "$0")" && pwd)
 tests=$(dirname "$here")
@@ -22,11 +22,11 @@ export GIMP_RUN_HOME
 # (read only)
 installed=${XDG_CONFIG_HOME:-$HOME/.config}/GIMP/3.2/plug-ins/gimp-lensfun
 [ -x "$installed/gimp-lensfun" ] || { echo "no installed plug-in in $installed (README)" >&2; exit 1; }
-gegl_path="$HOME/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins:/app/lib/gegl-0.4"
+gegl_path="${XDG_DATA_HOME:-$HOME/.local/share}/gegl-0.4/plug-ins:$(pkg-config --variable=pluginsdir gegl-0.4)"
 rm -rf "$tests/output/gui-profile/plug-ins"
 mkdir -p "$tests/output/gui-profile/plug-ins"
 cp -R "$installed" "$tests/output/gui-profile/plug-ins/"
-gimp_run --flatpak --filesystem="$tests" --env=GDK_BACKEND=broadway --env=BROADWAY_DISPLAY=:5 \
+gimp_run --env=GDK_BACKEND=broadway --env=BROADWAY_DISPLAY=:5 \
   --env=GIMP3_DIRECTORY="$tests/output/gui-profile" --env=GEGL_PATH="$gegl_path" \
   --env=LF_IMAGE="$tests/output/grid.png" -- sh -c \
   "broadwayd --port 8085 :5 & bw=\$!; sleep 2; gimp-3.2 --new-instance --no-splash \

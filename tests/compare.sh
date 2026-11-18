@@ -1,13 +1,13 @@
 #!/bin/sh
 # Corrects a grid with the installed plug-in and with the installed
-# lensfun:correct filter, inside the Flatpak GIMP without a window, and
+# lensfun:correct filter, in the native GIMP without a window, and
 # checks that both give the same result and that the result is corrected.
 # Install first (README).
 # GIMP runs with a throwaway profile and isolated from your folders
 # (tests/isolate.sh): the installed plug-in is copied from your plug-in
 # folder into the profile (only it: other plug-ins of yours can change
 # their own folders when GIMP starts them), the installed filter is read
-# from your GEGL folder of the Flatpak, nothing is written there or
+# from your GEGL folder, nothing is written there or
 # anywhere else of yours, and a GIMP of yours does not matter.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
@@ -23,12 +23,12 @@ export GIMP_RUN_HOME
 # (read only)
 installed=${XDG_CONFIG_HOME:-$HOME/.config}/GIMP/3.2/plug-ins/gimp-lensfun
 [ -x "$installed/gimp-lensfun" ] || { echo "no installed plug-in in $installed (README)" >&2; exit 1; }
-gegl_path="$HOME/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins:/app/lib/gegl-0.4"
+gegl_path="${XDG_DATA_HOME:-$HOME/.local/share}/gegl-0.4/plug-ins:$(pkg-config --variable=pluginsdir gegl-0.4)"
 rm -rf "$out/compare-profile/plug-ins"
 mkdir -p "$out/compare-profile/plug-ins"
 cp -R "$installed" "$out/compare-profile/plug-ins/"
 python3 "$here/make-grid.py" "$out/grid.png"
-gimp_run --flatpak --filesystem="$here" --env=LF_TEST_OUT="$out" \
+gimp_run --env=LF_TEST_OUT="$out" \
   --env=GIMP3_DIRECTORY="$out/compare-profile" --env=GEGL_PATH="$gegl_path" \
   -- gimp-console-3.2 --no-interface --no-data \
   --batch-interpreter python-fu-eval \
