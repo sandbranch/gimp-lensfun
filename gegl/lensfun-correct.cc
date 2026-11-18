@@ -103,6 +103,7 @@ property_enum (interpolation, _("Interpolation"), LensfunInterpolation,
 #include "gegl-op.h"
 
 #include <cstring>
+#include <dlfcn.h>
 
 #include "correct.h"
 #include "lensdb.h"
@@ -112,6 +113,30 @@ property_enum (interpolation, _("Interpolation"), LensfunInterpolation,
  * FindLenses writes a score into the lenses), so lookups hold this lock */
 static GMutex lookup_lock;
 
+/* The folder of the database: lensfun-db next to the folder this module
+ * is in, which is where meson installs it (LENSFUN_OP_DB_DIR) but found
+ * at run time, so that a module moved elsewhere together with its
+ * database (e.g. a binary release unpacked into the user's folders)
+ * finds it; else the folder it was installed with. */
+static gchar *
+database_dir (void)
+{
+  Dl_info info;
+
+  if (dladdr ((void *) database_dir, &info) && info.dli_fname)
+    {
+      gchar *dir    = g_path_get_dirname (info.dli_fname);
+      gchar *db_dir = g_build_filename (dir, "..", "lensfun-db", NULL);
+
+      g_free (dir);
+      if (g_file_test (db_dir, G_FILE_TEST_IS_DIR))
+        return db_dir;
+      g_free (db_dir);
+    }
+
+  return g_strdup (LENSFUN_OP_DB_DIR);
+}
+
 static lfDatabase *
 database (void)
 {
@@ -120,7 +145,10 @@ database (void)
 
   if (g_once_init_enter (&once))
     {
-      db = lensdb_load (LENSFUN_OP_DB_DIR);
+      gchar *db_dir = database_dir ();
+
+      db = lensdb_load (db_dir);
+      g_free (db_dir);
       g_once_init_leave (&once, 1);
     }
 
